@@ -716,6 +716,14 @@ void loadServerConfigFromString(char *config) {
                 goto loaderr;
             }
             server.notify_keyspace_events = flags;
+        } else if (!strcasecmp(argv[0],"notify-subspace-events") && argc == 2) {
+            int flags = subspaceEventsStringToFlags(argv[1]);
+
+            if (flags == -1) {
+                err = "Invalid event class character.";
+                goto loaderr;
+            }
+            server.notify_subspace_events = flags;
         } else if (!strcasecmp(argv[0],"supervised") && argc == 2) {
             server.supervised_mode =
                 configEnumGetValue(supervised_mode_enum,argv[1]);
@@ -991,6 +999,11 @@ void configSetCommand(client *c) {
 
         if (flags == -1) goto badfmt;
         server.notify_keyspace_events = flags;
+    } config_set_special_field("notify-subspace-events") {
+        int flags = subspaceEventsStringToFlags(o->ptr);
+
+        if (flags == -1) goto badfmt;
+        server.notify_subspace_events = flags;
     } config_set_special_field("slave-announce-ip") {
         zfree(server.slave_announce_ip);
         server.slave_announce_ip = ((char*)o->ptr)[0] ? zstrdup(o->ptr) : NULL;
@@ -1427,6 +1440,15 @@ void configGetCommand(client *c) {
         decrRefCount(flagsobj);
         matches++;
     }
+    if (stringmatch(pattern,"notify-subspace-events",1)) {
+        robj *flagsobj = createObject(OBJ_STRING,
+            subspaceEventsFlagsToString(server.notify_subspace_events));
+
+        addReplyBulkCString(c,"notify-subspace-events");
+        addReplyBulk(c,flagsobj);
+        decrRefCount(flagsobj);
+        matches++;
+    }
     if (stringmatch(pattern,"bind",1)) {
         sds aux = sdsjoin(server.bindaddr,server.bindaddr_count," ");
 
@@ -1783,6 +1805,20 @@ void rewriteConfigNotifykeyspaceeventsOption(struct rewriteConfigState *state) {
     rewriteConfigRewriteLine(state,option,line,force);
 }
 
+/* Rewrite the notify-subspace-events option. */
+void rewriteConfigNotifysubspaceeventsOption(struct rewriteConfigState *state) {
+    int force = server.notify_subspace_events != 0;
+    char *option = "notify-subspace-events";
+    sds line, flags;
+
+    flags = subspaceEventsFlagsToString(server.notify_subspace_events);
+    line = sdsnew(option);
+    line = sdscatlen(line, " ", 1);
+    line = sdscatrepr(line, flags, sdslen(flags));
+    sdsfree(flags);
+    rewriteConfigRewriteLine(state,option,line,force);
+}
+
 /* Rewrite the client-output-buffer-limit option. */
 void rewriteConfigClientoutputbufferlimitOption(struct rewriteConfigState *state) {
     int j;
@@ -2043,6 +2079,7 @@ int rewriteConfig(char *path) {
     rewriteConfigNumericalOption(state,"latency-monitor-threshold",server.latency_monitor_threshold,CONFIG_DEFAULT_LATENCY_MONITOR_THRESHOLD);
     rewriteConfigNumericalOption(state,"slowlog-max-len",server.slowlog_max_len,CONFIG_DEFAULT_SLOWLOG_MAX_LEN);
     rewriteConfigNotifykeyspaceeventsOption(state);
+    rewriteConfigNotifysubspaceeventsOption(state);
     rewriteConfigNumericalOption(state,"hash-max-ziplist-entries",server.hash_max_ziplist_entries,OBJ_HASH_MAX_ZIPLIST_ENTRIES);
     rewriteConfigNumericalOption(state,"hash-max-ziplist-value",server.hash_max_ziplist_value,OBJ_HASH_MAX_ZIPLIST_VALUE);
     rewriteConfigNumericalOption(state,"list-max-ziplist-size",server.list_max_ziplist_size,OBJ_LIST_MAX_ZIPLIST_SIZE);

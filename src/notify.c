@@ -54,12 +54,6 @@ int keyspaceEventsStringToFlags(char *classes) {
         case 'e': flags |= NOTIFY_EVICTED; break;
         case 'K': flags |= NOTIFY_KEYSPACE; break;
         case 'E': flags |= NOTIFY_KEYEVENT; break;
-        case 'S': flags |= NOTIFY_SUBSPACE; break;
-        case 'V': flags |= NOTIFY_SUBEVENT; break;
-        case 'j': flags |= NOTIFY_SUBSCRIBED; break;
-        case 'v': flags |= NOTIFY_UNSUBSCRIBED; break;
-        case 'c': flags |= NOTIFY_CHANNEL_CREATE; break;
-        case 'd': flags |= NOTIFY_CHANNEL_DROP; break;
         default: return -1;
         }
     }
@@ -85,15 +79,54 @@ sds keyspaceEventsFlagsToString(int flags) {
         if (flags & NOTIFY_ZSET) res = sdscatlen(res,"z",1);
         if (flags & NOTIFY_EXPIRED) res = sdscatlen(res,"x",1);
         if (flags & NOTIFY_EVICTED) res = sdscatlen(res,"e",1);
-        if (flags & NOTIFY_SUBSCRIBED) res = sdscatlen(res,"j",1);
-        if (flags & NOTIFY_UNSUBSCRIBED) res = sdscatlen(res,"v",1);
-        if (flags & NOTIFY_CHANNEL_CREATE) res = sdscatlen(res,"c",1);
-        if (flags & NOTIFY_CHANNEL_DROP) res = sdscatlen(res,"d",1);
     }
     if (flags & NOTIFY_KEYSPACE) res = sdscatlen(res,"K",1);
     if (flags & NOTIFY_KEYEVENT) res = sdscatlen(res,"E",1);
-    if (flags & NOTIFY_SUBSPACE) res = sdscatlen(res,"S",1);
-    if (flags & NOTIFY_SUBEVENT) res = sdscatlen(res,"V",1);
+    return res;
+}
+
+/* Turn a string representing notification classes into an integer
+ * representing notification classes flags xored.
+ *
+ * The function returns -1 if the input contains characters not mapping to
+ * any class. */
+int subspaceEventsStringToFlags(char *classes) {
+    char *p = classes;
+    int c, flags = 0;
+
+    while((c = *p++) != '\0') {
+        switch(c) {
+        case 'A': flags |= NOTIFY_SUB_ALL; break;
+        case 'S': flags |= NOTIFY_SUB_SUBSPACE; break;
+        case 'E': flags |= NOTIFY_SUB_SUBEVENT; break;
+        case 's': flags |= NOTIFY_SUB_SUBSCRIBED; break;
+        case 'u': flags |= NOTIFY_SUB_UNSUBSCRIBED; break;
+        case 'c': flags |= NOTIFY_SUB_CHANNEL_CREATE; break;
+        case 'd': flags |= NOTIFY_SUB_CHANNEL_DROP; break;
+        default: return -1;
+        }
+    }
+    return flags;
+}
+
+/* This function does exactly the reverse of the function above: it gets
+ * as input an integer with the xored flags and returns a string representing
+ * the selected classes. The string returned is an sds string that needs to
+ * be released with sdsfree(). */
+sds subspaceEventsFlagsToString(int flags) {
+    sds res;
+
+    res = sdsempty();
+    if ((flags & NOTIFY_SUB_ALL) == NOTIFY_SUB_ALL) {
+        res = sdscatlen(res,"A",1);
+    } else {
+        if (flags & NOTIFY_SUB_SUBSCRIBED) res = sdscatlen(res,"s",1);
+        if (flags & NOTIFY_SUB_UNSUBSCRIBED) res = sdscatlen(res,"u",1);
+        if (flags & NOTIFY_SUB_CHANNEL_CREATE) res = sdscatlen(res,"c",1);
+        if (flags & NOTIFY_SUB_CHANNEL_DROP) res = sdscatlen(res,"d",1);
+    }
+    if (flags & NOTIFY_SUB_SUBSPACE) res = sdscatlen(res,"S",1);
+    if (flags & NOTIFY_SUB_SUBEVENT) res = sdscatlen(res,"E",1);
     return res;
 }
 
@@ -149,32 +182,32 @@ void notifyKeyspaceEvent(int type, char *event, robj *key, int dbid) {
 
 /* The API provided to the rest of the Redis core is a simple function:
  *
- * notifySubspaceEvent(int type, char *event, robj *key);
+ * notifySubspaceEvent(int type, char *event, robj *channel);
  *
  * type is mask indicate the event type that occurred
  * 'event' is a C string representing the event name.
- * 'channel' is a Redis object the channel name being changed.   */
+ * 'channel' is a Redis object containing the channel name being changed.   */
 void notifySubspaceEvent(int type, char *event, robj *channel) {
     sds chan;
     robj *chanobj, *eventobj;
 
-    /* If notifications for this class of events are off, return ASAP. */
-    if (!(server.notify_keyspace_events & type)) return;
+    /* If notifications for this class of event are off, return ASAP. */
+    if (!(server.notify_subspace_events & type)) return;
 
     eventobj = createStringObject(event,strlen(event));
 
-    /* __keyspace@<db>__:<key> <event> notifications. */
-    if (server.notify_keyspace_events & NOTIFY_SUBSPACE) {
-        chan = sdsnewlen("__subspace:",11);
+    /* __subspace__:<channel> <event> notifications. */
+    if (server.notify_subspace_events & NOTIFY_SUB_SUBSPACE) {
+        chan = sdsnewlen("__subspace__:",13);
         chan = sdscatsds(chan, channel->ptr);
         chanobj = createObject(OBJ_STRING, chan);
         pubsubPublishMessage(chanobj, eventobj);
         decrRefCount(chanobj);
     }
 
-    /* __keyevente@<db>__:<event> <key> notifications. */
-    if (server.notify_keyspace_events & NOTIFY_SUBEVENT) {
-        chan = sdsnewlen("__subevent:",11);
+    /* __subevent__:<event> <channel> notifications. */
+    if (server.notify_subspace_events & NOTIFY_SUB_SUBEVENT) {
+        chan = sdsnewlen("__subevent__:",13);
         chan = sdscatsds(chan, eventobj->ptr);
         chanobj = createObject(OBJ_STRING, chan);
         pubsubPublishMessage(chanobj, channel);

@@ -425,13 +425,16 @@ typedef long long mstime_t; /* millisecond time type. */
 #define NOTIFY_ZSET (1<<7)        /* z */
 #define NOTIFY_EXPIRED (1<<8)     /* x */
 #define NOTIFY_EVICTED (1<<9)     /* e */
-#define NOTIFY_SUBSCRIBED (1<<10)     /* j(oin) */
-#define NOTIFY_UNSUBSCRIBED (1<<11)     /* v(leave) */
-#define NOTIFY_CHANNEL_CREATE (1<<12)     /* c */
-#define NOTIFY_CHANNEL_DROP (1<<13)     /* d */
-#define NOTIFY_SUBSPACE (1<<14)     /* S */
-#define NOTIFY_SUBEVENT (1<<15)     /* V */
-#define NOTIFY_ALL (NOTIFY_GENERIC | NOTIFY_STRING | NOTIFY_LIST | NOTIFY_SET | NOTIFY_HASH | NOTIFY_ZSET | NOTIFY_EXPIRED | NOTIFY_EVICTED | NOTIFY_SUBSCRIBED | NOTIFY_UNSUBSCRIBED | NOTIFY_CHANNEL_CREATE | NOTIFY_CHANNEL_DROP) /* A flag */
+#define NOTIFY_ALL (NOTIFY_GENERIC | NOTIFY_STRING | NOTIFY_LIST | NOTIFY_SET | NOTIFY_HASH | NOTIFY_ZSET | NOTIFY_EXPIRED | NOTIFY_EVICTED) /* A flag */
+
+/* Subspace change notification classes */
+#define NOTIFY_SUB_SUBSPACE (1<<0)        /* S */
+#define NOTIFY_SUB_SUBEVENT (1<<1)        /* E */
+#define NOTIFY_SUB_SUBSCRIBED (1<<2)      /* s */
+#define NOTIFY_SUB_UNSUBSCRIBED (1<<3)    /* u */
+#define NOTIFY_SUB_CHANNEL_CREATE (1<<4)  /* c */
+#define NOTIFY_SUB_CHANNEL_DROP (1<<5)    /* d */
+#define NOTIFY_SUB_ALL (NOTIFY_SUB_SUBSCRIBED | NOTIFY_SUB_UNSUBSCRIBED | NOTIFY_SUB_CHANNEL_CREATE | NOTIFY_SUB_CHANNEL_DROP)
 
 /* Get the first bind addr or NULL */
 #define NET_FIRST_BIND_ADDR (server.bindaddr_count ? server.bindaddr[0] : NULL)
@@ -1158,6 +1161,8 @@ struct redisServer {
     list *pubsub_patterns;  /* A list of pubsub_patterns */
     int notify_keyspace_events; /* Events to propagate via Pub/Sub. This is an
                                    xor of NOTIFY_... flags. */
+    int notify_subspace_events; /* Events to propagate via Pub/Sub. This is an
+                                   xor of NOTIFY_SUB_... flags. */
     /* Cluster */
     int cluster_enabled;      /* Is cluster enabled? */
     mstime_t cluster_node_timeout; /* Cluster node timeout. */
@@ -1703,9 +1708,13 @@ int pubsubPublishMessage(robj *channel, robj *message);
 
 /* Keyspace events notification */
 void notifyKeyspaceEvent(int type, char *event, robj *key, int dbid);
-void notifySubspaceEvent(int type, char *event, robj *channel);
 int keyspaceEventsStringToFlags(char *classes);
 sds keyspaceEventsFlagsToString(int flags);
+
+/* Subspace events notification */
+void notifySubspaceEvent(int type, char *event, robj *channel);
+int subspaceEventsStringToFlags(char *classes);
+sds subspaceEventsFlagsToString(int flags);
 
 /* Configuration */
 void loadServerConfig(char *filename, char *options);
