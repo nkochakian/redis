@@ -427,10 +427,10 @@ typedef long long mstime_t; /* millisecond time type. */
 #define NOTIFY_EVICTED (1<<9)     /* e */
 #define NOTIFY_SUBSCRIBED (1<<10)     /* j(oin) */
 #define NOTIFY_UNSUBSCRIBED (1<<11)     /* v(leave) */
-#define NOTIFY_CHANNEL_CREATE (1<<11)     /* c */
-#define NOTIFY_CHANNEL_DROP (1<<12)     /* d */
-#define NOTIFY_SUBSPACE (1<<13)     /* S */
-#define NOTIFY_SUBEVENT (1<<14)     /* V */
+#define NOTIFY_CHANNEL_CREATE (1<<12)     /* c */
+#define NOTIFY_CHANNEL_DROP (1<<13)     /* d */
+#define NOTIFY_SUBSPACE (1<<14)     /* S */
+#define NOTIFY_SUBEVENT (1<<15)     /* V */
 #define NOTIFY_ALL (NOTIFY_GENERIC | NOTIFY_STRING | NOTIFY_LIST | NOTIFY_SET | NOTIFY_HASH | NOTIFY_ZSET | NOTIFY_EXPIRED | NOTIFY_EVICTED | NOTIFY_SUBSCRIBED | NOTIFY_UNSUBSCRIBED | NOTIFY_CHANNEL_CREATE | NOTIFY_CHANNEL_DROP) /* A flag */
 
 /* Get the first bind addr or NULL */
